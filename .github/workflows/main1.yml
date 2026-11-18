@@ -1,0 +1,45 @@
+name: Build Flutter APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Android folder in cloud
+        run: flutter create --org com.example --project-name photo_cleaner .
+
+      # 👇 新增这一行：告诉 Gradle 跳过 NDK 下载
+      - name: Disable NDK download
+        run: echo "android.ndkVersion=21.4.7075529" >> android/local.properties
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: photo-cleaner-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
