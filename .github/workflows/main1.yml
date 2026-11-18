@@ -1,44 +1,49 @@
-name: Build Flutter APK
+name: 构建 APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Set up Flutter
+      - name: 安装 Flutter（最新稳定版）
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
-          cache: true
+          channel: stable
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Generate Android folder in cloud
+      - name: 补齐平台目录（生成 android/ 等）
         run: flutter create --org com.example --project-name photo_cleaner .
 
-      # 👇 新增这一行：告诉 Gradle 跳过 NDK 下载
-      - name: Disable NDK download
-        run: echo "android.ndkVersion=21.4.7075529" >> android/local.properties
+      - name: 写入相册读写权限
+        run: |
+          sed -i 's|<application|<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>\n    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION"/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <application|' android/app/src/main/AndroidManifest.xml
 
-      - name: Build APK
+      - name: 调整 compileSdk（ML Kit 要求 36）
+        run: |
+          FILE=android/app/build.gradle.kts
+          if [ -f "$FILE" ]; then
+            sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' "$FILE"
+            sed -i 's/compileSdk = [0-9]*/compileSdk = 36/' "$FILE"
+          fi
+          FILE2=android/app/build.gradle
+          if [ -f "$FILE2" ]; then
+            sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/' "$FILE2"
+            sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 36/' "$FILE2"
+          fi
+
+      - name: 安装依赖
+        run: flutter pub get
+
+      - name: 编译发布版 APK
         run: flutter build apk --release
 
-      - name: Upload APK Artifact
+      - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
           name: photo-cleaner-apk
