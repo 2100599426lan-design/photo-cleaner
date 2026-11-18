@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -300,12 +302,7 @@ class _PhotoTile extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          AssetEntityImage(
-            item.asset,
-            isOriginal: false,
-            thumbnailSize: const ThumbnailSize.square(200),
-            fit: BoxFit.cover,
-          ),
+          _ThumbImage(item: item),
           if (item.isVideo)
             const Positioned(
               right: 4,
@@ -321,6 +318,32 @@ class _PhotoTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _ThumbImage extends StatelessWidget {
+  const _ThumbImage({required this.item});
+
+  final PhotoItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List?>(
+      future: item.asset.thumbnailDataWithSize(
+        const ThumbnailSize.square(200),
+      ),
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        if (data != null) {
+          return Image.memory(
+            data,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+          );
+        }
+        return const ColoredBox(color: Colors.black12);
+      },
     );
   }
 }
