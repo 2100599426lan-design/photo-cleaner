@@ -1,0 +1,31 @@
+name: photo_cleaner
+description: 一款安卓照片分类筛选与一键删除工具（重复/模糊/类型/AI识别/时间大小）。
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 相册读取、权限、分页、缩略图
+  photo_manager: ^3.12.0
+  # 图像解码与处理（感知哈希、模糊检测）
+  image: ^4.2.0
+  # 状态管理
+  provider: ^6.1.2
+  # 本地 AI 图像标签（人物/风景/食物等，离线）
+  google_mlkit_image_labeling: ^1.0.3
+
+  # UI 辅助
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
