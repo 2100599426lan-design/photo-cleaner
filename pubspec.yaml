@@ -18,6 +18,8 @@ dependencies:
   provider: ^6.1.2
   # 本地 AI 图像标签（人物/风景/食物等，离线）
   google_mlkit_image_labeling: ^1.0.3
+  # 本地缓存（持久化分析结果）
+  path_provider: ^2.1.4
 
   # UI 辅助
   cupertino_icons: ^1.0.8
