@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:photo_manager/photo_manager.dart';
 import 'package:provider/provider.dart';
 
 import '../state/gallery_state.dart';
@@ -36,6 +37,40 @@ class _RootPageState extends State<RootPage> {
     final ready = context.read<GalleryState>().loaded;
     if (ready != _ready && mounted) {
       setState(() => _ready = ready);
+      if (ready) {
+        // 进入滑动模式后，检测「媒体管理」权限，避免删除弹确认框。
+        WidgetsBinding.instance.addPostFrameCallback((_) => _checkManageMedia());
+      }
+    }
+  }
+
+  /// Android 12+：未开启「媒体管理」时引导开启，上滑删除即可不再弹确认框。
+  Future<void> _checkManageMedia() async {
+    try {
+      final can = await PhotoManager.canManageMedia();
+      if (can || !mounted) return;
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('开启「媒体管理」权限'),
+          content: const Text('开启后，上滑删除照片将不再弹出确认框，刷起来更流畅。是否现在去开启？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('暂不'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('去开启'),
+            ),
+          ],
+        ),
+      );
+      if (go == true) {
+        await PhotoManager.requestManageMedia();
+      }
+    } catch (_) {
+      // 不支持该能力的设备上静默忽略。
     }
   }
 
