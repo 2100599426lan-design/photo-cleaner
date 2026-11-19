@@ -7,8 +7,9 @@ import 'package:provider/provider.dart';
 import '../models/photo_item.dart';
 import '../services/delete_service.dart';
 import '../state/gallery_state.dart';
+import 'home_page.dart';
 
-/// 抖音式滑动浏览：上滑删除当前照片，下滑返回上一张。
+/// 抖音式全屏浏览：下滑看下一张，上滑删除当前照片。
 class SwipePage extends StatefulWidget {
   const SwipePage({super.key, required this.items, this.initialIndex = 0});
 
@@ -33,13 +34,19 @@ class _SwipePageState extends State<SwipePage> {
         : widget.initialIndex.clamp(0, _items.length - 1);
   }
 
-  /// 上滑 -> 删除；下滑 -> 上一张。
+  /// 上滑 -> 删除；下滑 -> 下一张。
   void _onVerticalDragEnd(DragEndDetails details) {
     final v = details.primaryVelocity ?? 0;
     if (v <= -250) {
       _deleteCurrent();
     } else if (v >= 250) {
-      _prev();
+      _next();
+    }
+  }
+
+  void _next() {
+    if (_index < _items.length - 1) {
+      setState(() => _index++);
     }
   }
 
@@ -60,7 +67,6 @@ class _SwipePageState extends State<SwipePage> {
 
     final result = await DeleteService.deleteItems([current]);
     if (result.success > 0) {
-      // 同步移除全局列表，返回首页后不再出现。
       if (mounted) {
         context.read<GalleryState>().removeItems([current.id]);
       }
@@ -74,14 +80,14 @@ class _SwipePageState extends State<SwipePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('已全部处理完，共删除 $_deleted 张')),
       );
-      Navigator.pop(context);
     }
   }
 
-  void _prev() {
-    if (_index > 0) {
-      setState(() => _index--);
-    }
+  void _openGrid() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HomePage()),
+    );
   }
 
   @override
@@ -95,11 +101,14 @@ class _SwipePageState extends State<SwipePage> {
             children: [
               const Icon(Icons.check_circle_outline, color: Colors.green, size: 64),
               const SizedBox(height: 16),
-              const Text('已全部处理完', style: TextStyle(color: Colors.white)),
+              Text(
+                '已全部处理完，共删除 $_deleted 张',
+                style: const TextStyle(color: Colors.white),
+              ),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('返回'),
+                onPressed: () => context.read<GalleryState>().init(),
+                child: const Text('重新加载'),
               ),
             ],
           ),
@@ -116,15 +125,19 @@ class _SwipePageState extends State<SwipePage> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            _FullImage(item: item),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _FullImage(key: ValueKey(item.id), item: item),
+            ),
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.grid_view, color: Colors.white),
+                      tooltip: '网格分类',
+                      onPressed: _openGrid,
                     ),
                     Expanded(
                       child: Text(
@@ -147,13 +160,10 @@ class _SwipePageState extends State<SwipePage> {
               bottom: 36,
               child: Column(
                 children: [
-                  Icon(Icons.keyboard_arrow_up, color: Colors.white70, size: 32),
-                  Text('上滑删除', style: TextStyle(color: Colors.white70)),
-                  SizedBox(height: 6),
-                  Text(
-                    '下滑返回上一张',
-                    style: TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
+                  Text('下滑 下一张', style: TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 6),
+                  Icon(Icons.keyboard_arrow_up, color: Colors.white70, size: 28),
+                  Text('上滑 删除', style: TextStyle(color: Colors.white70)),
                 ],
               ),
             ),
@@ -165,7 +175,7 @@ class _SwipePageState extends State<SwipePage> {
 }
 
 class _FullImage extends StatelessWidget {
-  const _FullImage({required this.item});
+  const _FullImage({super.key, required this.item});
 
   final PhotoItem item;
 

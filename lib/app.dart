@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'ui/home_page.dart';
+import 'ui/root_page.dart';
 
 /// 应用根组件：主题与首页。
 class PhotoCleanerApp extends StatelessWidget {
@@ -22,7 +22,7 @@ class PhotoCleanerApp extends StatelessWidget {
         brightness: Brightness.dark,
       ),
       themeMode: ThemeMode.system,
-      home: const HomePage(),
+      home: const RootPage(),
     );
   }
 }
