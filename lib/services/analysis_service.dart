@@ -49,25 +49,44 @@ class AnalysisService {
     // 2) 连拍：按拍摄时间聚类。
     final bursts = detectBursts(photos);
 
-    // 3) 逐张取缩略图，计算 dHash + 清晰度。
-    for (var i = 0; i < total; i++) {
-      final p = photos[i];
-      onProgress?.call((i + 1) / total, '分析照片 ${i + 1}/$total');
-      final thumb = await p.asset.thumbnailDataWithSize(
-        const ThumbnailSize.square(256),
-      );
-      if (thumb != null) {
-        final f = ImageProcessor.fromBytes(thumb);
-        if (f != null) {
-          p.dHash = f.dHash;
-          p.blurScore = f.blurVariance;
+    // 3) 并发取缩略图，计算 dHash + 清晰度（跳过已缓存的照片）。
+    final pending = photos
+        .where((p) => p.dHash == null || p.blurScore == null)
+        .toList();
+    final pendingCount = pending.length;
+    var idx = 0;
+    var processed = 0;
+    Future<void> worker() async {
+      while (true) {
+        final i = idx;
+        if (i >= pendingCount) break;
+        idx = i + 1;
+        final p = pending[i];
+        try {
+          final thumb = await p.asset.thumbnailDataWithSize(
+            const ThumbnailSize.square(128),
+          );
+          if (thumb != null) {
+            final f = ImageProcessor.fromBytes(thumb);
+            if (f != null) {
+              p.dHash = f.dHash;
+              p.blurScore = f.blurVariance;
+            }
+          }
+        } catch (_) {
+          // 单张失败不影响整体。
+        }
+        processed++;
+        if (processed % 10 == 0) {
+          onProgress?.call(
+            pendingCount == 0 ? 1.0 : processed / pendingCount,
+            '分析照片 $processed/$pendingCount',
+          );
         }
       }
-      // 每 20 张让出事件循环，保持 UI 流畅。
-      if (i % 20 == 0) {
-        await Future<void>.delayed(Duration.zero);
-      }
     }
+
+    await Future.wait(List.generate(8, (_) => worker()));
 
     // 4) 模糊标记。
     for (final p in photos) {

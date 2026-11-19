@@ -9,6 +9,7 @@ import '../models/filter_category.dart';
 import '../models/photo_item.dart';
 import '../services/analysis_service.dart';
 import '../state/gallery_state.dart';
+import 'swipe_page.dart';
 
 /// 首页：照片网格 + 多选删除 + 分类 + 筛选。
 class HomePage extends StatefulWidget {
@@ -41,6 +42,11 @@ class _HomePageState extends State<HomePage> {
           state.isSelectionMode ? '已选 ${state.selectedCount} 项' : _current.label,
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.swipe),
+            tooltip: '滑动浏览',
+            onPressed: items.isEmpty ? null : () => _openSwipe(items),
+          ),
           IconButton(
             icon: const Icon(Icons.filter_list),
             tooltip: '时间 + 大小筛选',
@@ -212,6 +218,13 @@ class _HomePageState extends State<HomePage> {
         ? '已删除 ${result.success} 项，${result.failed} 项失败'
         : '已删除 ${result.success} 项';
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  void _openSwipe(List<PhotoItem> items) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => SwipePage(items: items)),
+    );
   }
 
   Future<void> _openFilter(GalleryState state) async {

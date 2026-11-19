@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 import '../models/filter_category.dart';
 import '../models/photo_item.dart';
 import '../services/ai_labeler.dart';
+import '../services/cache_service.dart';
 import '../services/analysis_service.dart';
 import '../services/delete_service.dart';
 import '../services/gallery_service.dart';
@@ -81,30 +84,35 @@ class GalleryState extends ChangeNotifier {
     loadingMessage = '正在读取相册';
     notifyListeners();
 
+    List<AssetEntity> assets;
     try {
-      final assets = await GalleryService.loadAllAssets(
+      assets = await GalleryService.loadAllAssets(
         onProgress: (done, total) {
           progress = total == 0 ? 1.0 : done / total;
           notifyListeners();
         },
       );
-      photos
-        ..clear()
-        ..addAll(assets.map(PhotoItem.fromAsset));
-
-      // 读取文件大小（用于“大文件”与“大小筛选”）。
-      loadingMessage = '正在读取文件信息';
-      notifyListeners();
-      await _fillFileSizes();
-
-      loaded = true;
     } catch (e) {
+      loading = false;
       error = '读取相册失败：$e';
       errorVisible = true;
-    } finally {
-      loading = false;
       notifyListeners();
+      return;
     }
+
+    photos
+      ..clear()
+      ..addAll(assets.map(PhotoItem.fromAsset));
+
+    // 加载分析缓存，避免重复分析。
+    await _loadCache();
+
+    loaded = true;
+    loading = false;
+    notifyListeners();
+
+    // 后台读取文件大小，不阻塞首屏显示。
+    unawaited(_fillFileSizes());
   }
 
   Future<void> _fillFileSizes() async {
@@ -124,6 +132,36 @@ class GalleryState extends ChangeNotifier {
     }
 
     await Future.wait(List.generate(10, (_) => worker()));
+    notifyListeners();
+  }
+
+  /// 从磁盘加载分析缓存，填充 dHash / 清晰度 / AI 标签。
+  Future<void> _loadCache() async {
+    final cache = await CacheService.load();
+    for (final p in photos) {
+      final entry = cache[p.id];
+      if (entry is Map) {
+        p.dHash = entry['dHash'] as String?;
+        p.blurScore = (entry['blur'] as num?)?.toDouble();
+        final labels = entry['labels'];
+        if (labels is List) {
+          p.labels = labels.whereType<String>().toSet();
+        }
+      }
+    }
+  }
+
+  /// 构建待持久化的缓存数据。
+  Map<String, dynamic> _buildCache() {
+    final map = <String, dynamic>{};
+    for (final p in photos) {
+      map[p.id] = {
+        'dHash': p.dHash,
+        'blur': p.blurScore,
+        'labels': p.labels.toList(),
+      };
+    }
+    return map;
   }
 
   /// 运行重复/模糊/类型分析。
@@ -146,6 +184,7 @@ class GalleryState extends ChangeNotifier {
     analyzing = false;
     analyzed = true;
     notifyListeners();
+    await CacheService.save(_buildCache());
   }
 
   /// 运行 AI 内容识别（人物/风景/食物/文档）。
@@ -178,6 +217,16 @@ class GalleryState extends ChangeNotifier {
 
     aiRunning = false;
     aiAnalyzed = true;
+    notifyListeners();
+    await CacheService.save(_buildCache());
+  }
+
+  /// 从本地列表移除指定 id 的照片（不删除文件，用于滑动删除后的同步）。
+  void removeItems(Iterable<String> ids) {
+    final s = ids.toSet();
+    photos.removeWhere((p) => s.contains(p.id));
+    categoryCache.clear();
+    selectedIds.removeAll(s);
     notifyListeners();
   }
 
